@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2026-05-11T13:56:19.112988",
+    "prediction": 0,
+    "probability": 0.0065,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-10 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-11T14:27:04.546293",
+    "prediction": 0,
+    "probability": 0.0781,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  }
+]

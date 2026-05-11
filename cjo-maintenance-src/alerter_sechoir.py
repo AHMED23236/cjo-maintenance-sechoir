@@ -9,7 +9,6 @@
 # ============================================================
 
 import pandas as pd
-import numpy as np
 import joblib
 import smtplib
 import json
@@ -124,7 +123,10 @@ def apply_rule_mapping(row: pd.Series, rules) -> str:
 
 # ── PRÉDICTION ───────────────────────────────────────────────
 def predict(model, features, rules, df):
-    last_row = df.iloc[-1]
+    now  = pd.Timestamp.now().floor('5min')
+    diff = (df['window_start'] - now).abs()
+    idx  = diff.idxmin()
+    last_row     = df.loc[idx]
     window_start = str(last_row['window_start'])
 
     available = [f for f in features if f in df.columns]

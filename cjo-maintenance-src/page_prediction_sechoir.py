@@ -32,9 +32,9 @@ HIST_FILE     = DATA_DIR / "prediction_history_sechoir.csv"
 MAIL_CONFIG = {
     "smtp_server": "smtp.gmail.com",
     "smtp_port":   587,
-    "sender":      "votre.email@gmail.com",
-    "password":    "votre_app_password",       # mot de passe d'application Gmail
-    "recipient":   "responsable@cjo.com.tn",
+    "sender":      "cjoadmin@gmail.com",
+    "password":    "cxhlmuudblbtxozj",
+    "recipient":   "ahmed.naffeti10@gmail.com",
 }
 
 # ── FONCTION REQUISE PAR rule_mapping_sechoir.pkl ────────────
@@ -203,8 +203,12 @@ def send_alert_mail(prob: float, failure_type: str, window_start: str) -> bool:
 
 # ── PRÉDICTION ───────────────────────────────────────────────
 def run_prediction(model, features, rules, df_live):
-    """Prédit sur la dernière fenêtre disponible."""
-    last_row = df_live.iloc[-1]
+    """Prédit sur la fenêtre la plus proche de l'heure actuelle."""
+    now = pd.Timestamp.now().floor('5min')
+    # Trouver la fenêtre la plus proche de maintenant
+    diff = (df_live['window_start'] - now).abs()
+    idx  = diff.idxmin()
+    last_row = df_live.loc[idx]
     window_start = str(last_row['window_start'])
 
     # Construire le vecteur de features

@@ -10,8 +10,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
-from page_anomalies_sechoir    import show_anomalies_sechoir
-from page_prediction_sechoir  import show_prediction_sechoir
+from page_anomalies_sechoir   import show_anomalies_sechoir
+from page_prediction_sechoir import show_prediction_sechoir
 
 # ── CHEMINS ──────────────────────────────────────────────────
 BASE_DIR     = Path(__file__).parent
@@ -398,7 +398,10 @@ def show_dashboard_sechoir():
         show_pressostats(df_press)
     elif page == "🔍 Anomalies IF":
         show_anomalies_sechoir()
+<<<<<<< HEAD
     elif page == "🔮 Prédiction Temps Réel":
         show_prediction_sechoir()
+=======
+>>>>>>> 526c73fa68a6e4dd72636b01b29cd40567e378ae
     elif page == "🤖 Prédiction IA":
         show_prediction()

@@ -123,9 +123,9 @@ def apply_rule_mapping(row: pd.Series, rules) -> str:
 
 # ── PRÉDICTION ───────────────────────────────────────────────
 def predict(model, features, rules, df):
-    now  = pd.Timestamp.now().floor('5min')
-    diff = (df['window_start'] - now).abs()
-    idx  = diff.idxmin()
+    now        = pd.Timestamp.now().floor('5min')
+    time_delta = (df['window_start'] - now).abs()
+    idx        = time_delta.idxmin()
     last_row     = df.loc[idx]
     window_start = str(last_row['window_start'])
 

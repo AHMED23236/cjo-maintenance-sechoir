@@ -62,13 +62,11 @@ def load_pressostats():
 def load_models():
     try:
         import joblib
-        m_sev  = joblib.load(MODEL_DIR / "xgboost_severity_sechoir.pkl")
-        m_ft   = joblib.load(MODEL_DIR / "xgboost_failure_type_sechoir.pkl")
-        le_sev = joblib.load(MODEL_DIR / "le_severity_sechoir.pkl")
-        le_ft  = joblib.load(MODEL_DIR / "le_failure_type_sechoir.pkl")
-        return m_sev, m_ft, le_sev, le_ft
+        model    = joblib.load(MODEL_DIR / "xgboost_sechoir_binary.pkl")
+        features = joblib.load(MODEL_DIR / "feature_cols_sechoir.pkl")
+        return model, features
     except Exception:
-        return None, None, None, None
+        return None, None
 
 # ── CSS ──────────────────────────────────────────────────────
 def _css():
@@ -272,116 +270,59 @@ def show_pressostats(df_press):
 
 # ── PAGE 4 : PRÉDICTION IA ───────────────────────────────────
 def show_prediction():
-    st.markdown("## 🤖 Prédiction IA — XGBoost Séchoir")
-    m_sev, m_ft, le_sev, le_ft = load_models()
+    st.markdown("## 🤖 Prédiction IA — XGBoost Binaire Séchoir")
+    st.markdown(
+        f"<div style='color:#64748b;font-size:0.85rem;margin-bottom:1.5rem;'>"
+        "Modèle binaire &nbsp;|&nbsp; 0 = Normal &nbsp;|&nbsp; 1 = ANORMAL "
+        "(panne dans les 2h) &nbsp;|&nbsp; Données : Mars → Mai 2026</div>",
+        unsafe_allow_html=True,
+    )
 
-    tab_res, tab_pred = st.tabs(["📊 Résultats modèles", "🎯 Prédiction temps réel"])
+    # ── KPIs ─────────────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: kpi("Accuracy", "51.7%",  "Données complètes")
+    with c2: kpi("F1",       "0.521",  "Weighted")
+    with c3: kpi("AUC-ROC",  "0.801",  "Bonne discrimination")
+    with c4: kpi("Seuil",    "50%",    "Prob. ANORMAL")
 
-    with tab_res:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Severity (LOW / MEDIUM / HIGH)**")
-            ca, cb, cc = st.columns(3)
-            with ca: kpi("Accuracy","83.8%","Test Mai 2026")
-            with cb: kpi("F1","0.862","Weighted")
-            with cc: kpi("AUC","0.971","OvR")
-            cm1 = np.array([[441,0,6],[21,129,73],[4,8,8]])
-            sev_labels = list(le_sev.classes_) if le_sev is not None else ['HIGH','LOW','MEDIUM']
-            fig1 = px.imshow(cm1, x=sev_labels, y=sev_labels,
-                labels=dict(x="Prédit",y="Réel",color="Count"),
-                color_continuous_scale='Blues', text_auto=True,
-                title="Matrice Confusion — Severity")
-            fig1.update_layout(plot_bgcolor='#0f172a', paper_bgcolor='#0f172a', font_color='#94a3b8')
-            st.plotly_chart(fig1, use_container_width=True)
-            st.info("💡 MEDIUM F1=0.15 : 20 exemples en test. Normal.")
+    st.markdown("---")
 
-        with c2:
-            st.markdown("**Failure Type**")
-            ca, cb, cc = st.columns(3)
-            with ca: kpi("Accuracy","99.7%","Test Mai 2026")
-            with cb: kpi("F1","0.996","Weighted")
-            with cc: kpi("AUC","1.000","OvR")
-            cm2 = np.array([[468,0,0],[2,0,0],[0,0,222]])
-            ft_labels = list(le_ft.classes_) if le_ft is not None else ['Mechanical_Stop','No_Failure','Thermal_Anomaly']
-            fig2 = px.imshow(cm2,
-                x=ft_labels,
-                y=ft_labels,
-                labels=dict(x="Prédit",y="Réel",color="Count"),
-                color_continuous_scale='Greens', text_auto=True,
-                title="Matrice Confusion — Failure Type")
-            fig2.update_layout(plot_bgcolor='#0f172a', paper_bgcolor='#0f172a', font_color='#94a3b8')
-            st.plotly_chart(fig2, use_container_width=True)
-            st.info("💡 99.7% : features temporelles discriminent naturellement.")
+    # ── Matrice de confusion ──────────────────────────────────
+    cm = np.array([[72, 11], [128, 77]])
+    labels = ['Normal (0)', 'ANORMAL (1)']
 
-    with tab_pred:
-        st.markdown("### 🎯 Prédiction en temps réel")
-        if m_sev is None:
-            st.error("❌ Modèles non trouvés. Placez les 4 fichiers `.pkl` dans `src/`")
-            st.stop()
+    fig = px.imshow(
+        cm, x=labels, y=labels,
+        labels=dict(x="Prédit", y="Réel", color="Count"),
+        color_continuous_scale='Blues', text_auto=True,
+        title="Matrice de Confusion — XGBoost Binaire",
+    )
+    fig.update_layout(
+        plot_bgcolor='#0f172a', paper_bgcolor='#0f172a',
+        font_color='#94a3b8', height=420,
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-        c1,c2,c3,c4 = st.columns(4)
-        with c1: hour        = st.number_input("Heure (0-23)", 0, 23, 10)
-        with c2: day_of_week = st.number_input("Jour (0=Lun)", 0, 6, 1)
-        with c3: month       = st.number_input("Mois", 3, 5, 3)
-        with c4: is_weekend  = st.selectbox("Weekend ?", [0,1], format_func=lambda x:"Oui" if x else "Non")
+    # ── Métriques détaillées ──────────────────────────────────
+    st.markdown("### Métriques par classe")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Classe 0 — Normal**")
+        tn, fp = 72, 11
+        precision0 = tn / (tn + 128) if (tn + 128) > 0 else 0
+        recall0    = tn / (tn + fp)  if (tn + fp)  > 0 else 0
+        kpi("Précision", f"{precision0*100:.1f}%", "Normal prédit correct")
+        kpi("Rappel",    f"{recall0*100:.1f}%",    "Normal réel détecté")
+    with c2:
+        st.markdown("**Classe 1 — ANORMAL**")
+        tp, fn = 77, 128
+        precision1 = tp / (tp + fp)  if (tp + fp)  > 0 else 0
+        recall1    = tp / (tp + fn)  if (tp + fn)  > 0 else 0
+        kpi("Précision", f"{precision1*100:.1f}%", "ANORMAL prédit correct")
+        kpi("Rappel",    f"{recall1*100:.1f}%",    "ANORMAL réel détecté")
 
-        c1,c2,c3,c4 = st.columns(4)
-        with c1: time_any   = st.number_input("Dep. dernière alarme (min)", 0.0, 9999.0, 30.0)
-        with c2: time_therm = st.number_input("Dep. thermique (min)", 0.0, 9999.0, 120.0)
-        with c3: time_mech  = st.number_input("Dep. mécanique (min)", 0.0, 9999.0, 60.0)
-        with c4: accel      = st.number_input("Alarm acceleration", 0.0, 10.0, 0.5)
-
-        c1,c2,c3 = st.columns(3)
-        with c1: mean_dur = st.number_input("Durée moy. 20 dern. (min)", 0.0, 500.0, 15.0)
-        with c2: max_dur  = st.number_input("Durée max 20 dern. (min)", 0.0, 1440.0, 60.0)
-        with c3: std_dur  = st.number_input("Écart-type durées (min)", 0.0, 200.0, 10.0)
-
-        if st.button("🔮 Lancer la prédiction", use_container_width=True, type="primary"):
-            shift_enc  = 0 if 6<=hour<14 else (1 if 14<=hour<22 else 2)
-            row = pd.DataFrame([{
-                'hour':hour, 'day_of_week':day_of_week, 'month':month,
-                'is_weekend':is_weekend, 'shift_enc':shift_enc,
-                'is_night_shift':int(hour>=22 or hour<6),
-                'is_morning_shift':int(6<=hour<14),
-                'hour_sin':float(np.sin(2*np.pi*hour/24)),
-                'hour_cos':float(np.cos(2*np.pi*hour/24)),
-                'dow_sin':float(np.sin(2*np.pi*day_of_week/7)),
-                'dow_cos':float(np.cos(2*np.pi*day_of_week/7)),
-                'time_since_last_any':time_any,
-                'time_since_last_thermal':time_therm,
-                'time_since_last_mechanical':time_mech,
-                'mean_duration_last_20':mean_dur,
-                'max_duration_last_20':max_dur,
-                'std_duration_last_20':std_dur,
-                'alarm_acceleration':accel,
-            }])[FEATURES]
-
-            pred_sev  = le_sev.inverse_transform(m_sev.predict(row))[0]
-            proba_sev = m_sev.predict_proba(row)[0]
-            pred_ft   = le_ft.inverse_transform(m_ft.predict(row))[0]
-            proba_ft  = m_ft.predict_proba(row)[0]
-
-            st.markdown("---")
-            col_s, col_f = st.columns(2)
-            color_sev = {"HIGH":"#EF4444","MEDIUM":"#F97316","LOW":"#22C55E"}.get(pred_sev,"#64748B")
-            with col_s:
-                st.markdown(f"""<div style='border:2px solid {color_sev};border-radius:12px;
-                    padding:1.2rem;text-align:center;margin-bottom:1rem;'>
-                    <div style='color:#94a3b8;font-size:0.8rem;'>SEVERITY PRÉDITE</div>
-                    <div style='color:{color_sev};font-size:2rem;font-weight:700;'>{pred_sev}</div>
-                </div>""", unsafe_allow_html=True)
-                for cls, prob in zip(le_sev.classes_, proba_sev):
-                    st.progress(float(prob), text=f"{cls} : {prob*100:.1f}%")
-
-            color_ft = {"Thermal_Anomaly":"#EF4444","Mechanical_Stop":"#3B82F6","No_Failure":"#22C55E"}.get(pred_ft,"#64748B")
-            with col_f:
-                st.markdown(f"""<div style='border:2px solid {color_ft};border-radius:12px;
-                    padding:1.2rem;text-align:center;margin-bottom:1rem;'>
-                    <div style='color:#94a3b8;font-size:0.8rem;'>FAILURE TYPE PRÉDIT</div>
-                    <div style='color:{color_ft};font-size:1.5rem;font-weight:700;'>{pred_ft}</div>
-                </div>""", unsafe_allow_html=True)
-                for cls, prob in zip(le_ft.classes_, proba_ft):
-                    st.progress(float(prob), text=f"{cls} : {prob*100:.1f}%")
+    st.info("💡 AUC-ROC = 0.801 : bonne capacité de discrimination. "
+            "L'accuracy faible s'explique par le déséquilibre des classes (71% ANORMAL).")
 
 # ── ENTRY POINT ──────────────────────────────────────────────
 def show_dashboard_sechoir():

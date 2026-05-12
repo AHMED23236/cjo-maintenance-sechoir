@@ -1,0 +1,31 @@
+============================================================
+  Génération données séchoir — 12/05/2026
+============================================================
+
+[1] Génération des 288 fenêtres de 5 min...
+[2] Génération des labels (failure_type + severity)...
+[3] Génération des features temporelles...
+[4] Génération des features rolling alarmes...
+[5] Génération des pressostats (distributions réelles)...
+
+[6] Vérification finale...
+  Lignes     : 288
+  Colonnes   : 91
+  Nulls      : 0
+
+  failure_type:
+    Thermal_Anomaly        :  167 (58.0%)
+    Mechanical_Stop        :   61 (21.2%)
+    No_Failure             :   60 (20.8%)
+
+  severity:
+    MEDIUM   :  102 (35.4%)
+    LOW      :   84 (29.2%)
+    NONE     :   60 (20.8%)
+    HIGH     :   42 (14.6%)
+
+============================================================
+  ✅ Fichier généré : Alarme_sechoir_ML.csv
+  📅 Date           : 12/05/2026
+  📊 288 fenêtres de 5 min (24h complètes)
+============================================================

@@ -7,6 +7,7 @@
 # ============================================================
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -114,6 +115,7 @@ def load_live_data():
     df['window_start'] = pd.to_datetime(df['window_start'])
     return df
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_history():
     if HIST_FILE.exists():
         return pd.read_csv(HIST_FILE, parse_dates=['timestamp'])
@@ -205,9 +207,8 @@ def send_alert_mail(prob: float, failure_type: str, window_start: str) -> bool:
 def run_prediction(model, features, rules, df_live):
     """Prédit sur la fenêtre la plus proche de l'heure actuelle."""
     now = pd.Timestamp.now().floor('5min')
-    # Trouver la fenêtre la plus proche de maintenant
-    diff = (df_live['window_start'] - now).abs()
-    idx  = diff.idxmin()
+    time_delta = (df_live['window_start'] - now).abs()
+    idx        = time_delta.idxmin()
     last_row = df_live.loc[idx]
     window_start = str(last_row['window_start'])
 
@@ -301,8 +302,13 @@ def show_prediction_sechoir():
         st.session_state.last_result         = None
     if 'mail_enabled'        not in st.session_state:
         st.session_state.mail_enabled        = True
-    if 'last_window_start'   not in st.session_state:
-        st.session_state.last_window_start   = None
+    if 'last_window_start' not in st.session_state:
+        # Initialise depuis le CSV pour éviter les doublons entre sessions
+        hist = st.session_state.pred_history
+        if not hist.empty:
+            st.session_state.last_window_start = str(hist.iloc[0]['window_start'])
+        else:
+            st.session_state.last_window_start = None
 
     # ── Barre de contrôle ────────────────────────────────────
     col_btn, col_mail, col_next = st.columns([2, 2, 3])
@@ -312,14 +318,26 @@ def show_prediction_sechoir():
         st.session_state.mail_enabled = st.toggle(
             "📧 Alertes mail", value=st.session_state.mail_enabled)
     with col_next:
-        elapsed = time.time() - st.session_state.last_pred_time
-        remaining = max(0, REFRESH_INTERVAL * 60 - elapsed)
-        mins, secs = divmod(int(remaining), 60)
-        st.markdown(
-            f"<div style='color:{TEXT};font-size:0.8rem;padding-top:0.6rem;'>"
-            f"Prochaine auto : <strong style='color:{WHITE};'>{mins:02d}:{secs:02d}</strong>"
-            "</div>", unsafe_allow_html=True,
-        )
+        elapsed_now = time.time() - st.session_state.last_pred_time
+        remaining   = max(0, int(REFRESH_INTERVAL * 60 - elapsed_now))
+        components.html(f"""
+        <div style='color:#94a3b8;font-size:0.8rem;padding-top:0.6rem;font-family:sans-serif;'>
+            Prochaine auto :
+            <strong style='color:#f1f5f9;' id='cd'>
+                {remaining//60:02d}:{remaining%60:02d}
+            </strong>
+        </div>
+        <script>
+        var el = document.getElementById('cd');
+        var secs = {remaining};
+        setInterval(function() {{
+            if (secs > 0) secs--;
+            var m = Math.floor(secs / 60);
+            var s = secs % 60;
+            el.textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+        }}, 1000);
+        </script>
+        """, height=40)
 
     st.markdown("---")
 
@@ -337,11 +355,13 @@ def show_prediction_sechoir():
             pred, proba, failure_type, window_start = run_prediction(
                 model, features, rules, df_live)
 
-            # Ne sauvegarder dans l'historique que si c'est une nouvelle fenêtre
             is_new_window = window_start != st.session_state.last_window_start
 
-            mail_sent = False
+            # Mail : seulement si nouvelle fenêtre (évite double envoi)
+            mail_sent     = False
+            mail_attempted = False
             if pred == 1 and st.session_state.mail_enabled and is_new_window:
+                mail_attempted = True
                 mail_sent = send_alert_mail(proba, failure_type, window_start)
 
             result = {
@@ -350,11 +370,13 @@ def show_prediction_sechoir():
                 'failure_type_pred': failure_type,
                 'window_start':      window_start,
                 'mail_sent':         mail_sent,
+                'mail_attempted':    mail_attempted,
                 'timestamp':         datetime.now(),
             }
-            st.session_state.last_result      = result
-            st.session_state.last_pred_time   = time.time()
+            st.session_state.last_result    = result
+            st.session_state.last_pred_time = time.time()
 
+            # Sauvegarde uniquement si nouvelle fenêtre (pas de doublons)
             if is_new_window:
                 st.session_state.last_window_start = window_start
                 new_row = pd.DataFrame([{
@@ -403,7 +425,7 @@ def show_prediction_sechoir():
         </div>""", unsafe_allow_html=True)
         if res.get('mail_sent'):
             st.success("📧 Alerte mail envoyée au responsable maintenance.")
-        elif st.session_state.mail_enabled:
+        elif res.get('mail_attempted'):
             st.warning("📧 Mail non envoyé (vérifiez la configuration SMTP).")
 
     # ── KPIs ─────────────────────────────────────────────────
@@ -453,17 +475,25 @@ def show_prediction_sechoir():
         disp['état'] = disp['prediction'].map({0: '🟢 Normal', 1: '🔴 Anormal'})
         disp['prob'] = (disp['probability'] * 100).round(1).astype(str) + '%'
         disp['mail'] = disp['mail_sent'].map({True: '✅', False: '—'})
+
+        def niveau(p):
+            if p >= 0.80: return '🔴 HIGH'
+            if p >= 0.50: return '🟠 MEDIUM'
+            return '🟢 LOW'
+        disp['niveau'] = disp['probability'].apply(niveau)
+
         st.dataframe(
-            disp[['timestamp', 'état', 'prob', 'failure_type_pred',
+            disp[['timestamp', 'état', 'niveau', 'prob', 'failure_type_pred',
                   'window_start', 'mail']].reset_index(drop=True),
             use_container_width=True,
             column_config={
-                'timestamp':        st.column_config.DatetimeColumn("Horodatage", format="DD/MM HH:mm:ss"),
-                'état':             st.column_config.TextColumn("État"),
-                'prob':             st.column_config.TextColumn("Probabilité"),
-                'failure_type_pred':st.column_config.TextColumn("Type prédit"),
-                'window_start':     st.column_config.TextColumn("Fenêtre"),
-                'mail':             st.column_config.TextColumn("Mail"),
+                'timestamp':         st.column_config.DatetimeColumn("Horodatage", format="DD/MM HH:mm:ss"),
+                'état':              st.column_config.TextColumn("État"),
+                'niveau':            st.column_config.TextColumn("Niveau"),
+                'prob':              st.column_config.TextColumn("Probabilité"),
+                'failure_type_pred': st.column_config.TextColumn("Type prédit"),
+                'window_start':      st.column_config.TextColumn("Fenêtre"),
+                'mail':              st.column_config.TextColumn("Mail"),
             },
         )
 
@@ -482,8 +512,22 @@ def show_prediction_sechoir():
 
     # ── INFO prochaine actualisation ─────────────────────────
     elapsed_now = time.time() - st.session_state.last_pred_time
-    remaining   = max(0, REFRESH_INTERVAL * 60 - elapsed_now)
+    remaining = int(max(0, REFRESH_INTERVAL * 60 - elapsed_now))
     if remaining > 0:
-        st.caption(f"Prochaine actualisation automatique dans "
-                   f"{int(remaining//60):02d}:{int(remaining%60):02d} min "
-                   f"— ou cliquez sur 🔄 pour forcer.")
+        components.html(f"""
+        <p style='color:#64748b;font-size:0.8rem;font-family:sans-serif;margin:0;'>
+            Prochaine actualisation automatique dans
+            <strong id='cd2' style='color:#94a3b8;'>{remaining//60:02d}:{remaining%60:02d}</strong>
+            min — ou cliquez sur 🔄 pour forcer.
+        </p>
+        <script>
+        var el = document.getElementById('cd2');
+        var secs = {remaining};
+        setInterval(function() {{
+            if (secs > 0) secs--;
+            var m = Math.floor(secs / 60);
+            var s = secs % 60;
+            el.textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+        }}, 1000);
+        </script>
+        """, height=30)

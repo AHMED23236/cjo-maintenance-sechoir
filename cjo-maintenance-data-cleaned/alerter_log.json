@@ -14,5 +14,61 @@
     "failure_type": "No_Failure",
     "window_start": "2026-05-12 00:00:00",
     "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-11T16:27:19.586484",
+    "prediction": 1,
+    "probability": 0.8021,
+    "failure_type": "Thermal_Anomaly",
+    "window_start": "2026-05-11 16:25:00",
+    "mail_sent": true
+  },
+  {
+    "timestamp": "2026-05-12T12:27:16.952238",
+    "prediction": 0,
+    "probability": 0.2762,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-12T12:57:05.037239",
+    "prediction": 0,
+    "probability": 0.2762,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-12T13:27:05.423793",
+    "prediction": 0,
+    "probability": 0.2762,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-12T13:57:03.678048",
+    "prediction": 0,
+    "probability": 0.2762,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-12T14:27:04.585586",
+    "prediction": 0,
+    "probability": 0.2762,
+    "failure_type": "No_Failure",
+    "window_start": "2026-05-12 00:00:00",
+    "mail_sent": false
+  },
+  {
+    "timestamp": "2026-05-12T14:57:07.784721",
+    "prediction": 1,
+    "probability": 0.843,
+    "failure_type": "Thermal_Anomaly",
+    "window_start": "2026-05-12 14:55:00",
+    "mail_sent": true
   }
 ]
